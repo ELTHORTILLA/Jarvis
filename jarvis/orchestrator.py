@@ -91,7 +91,6 @@ class Assistant:
             print("   (silencio)", flush=True)
             return True
         print(f"👤 {text}", flush=True)
-        print(f"👤 {text}", flush=True)
 
         if self._is_exit(text):
             await self.speak("Hasta luego.")

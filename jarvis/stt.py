@@ -11,7 +11,6 @@ import asyncio
 import logging
 import os
 import re
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -82,8 +81,6 @@ class WhisperCppTranscriber:
                 "-nt",  # sin marcas de tiempo
             ]
             log.debug("ejecutando: %s", " ".join(args))
-            log.debug("temporal %s existe=%s size=%d bytes",
-                      tmp, tmp.exists(), tmp.stat().st_size if tmp.exists() else -1)
             # Debug: dejamos una copia del WAV enviado a Whisper en
             # JARVIS_DEBUG_DIR (si está definida) para poder reproducirlo y
             # entender qué está escuchando realmente el STT.
@@ -101,8 +98,6 @@ class WhisperCppTranscriber:
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await proc.communicate()
-            log.debug("whisper terminó rc=%d stdout=%d bytes stderr=%d bytes",
-                      proc.returncode, len(stdout), len(stderr))
             # Borramos antes de parsear, pero después de que el subproceso
             # haya soltado el handle. En Linux da igual, en Windows era
             # crítico.
@@ -111,9 +106,7 @@ class WhisperCppTranscriber:
                 detail = stderr.decode("utf-8", "replace").strip() or "sin detalle"
                 raise STTError(f"whisper.cpp falló (código {proc.returncode}): {detail}")
             raw = stdout.decode("utf-8", "replace")
-            cleaned = self._clean(raw)
-            log.debug("STT raw=%r cleaned=%r", raw, cleaned)
-            return cleaned
+            return self._clean(raw)
         except BaseException:
             # Si algo falla antes de communicate, intentamos borrar igual.
             await asyncio.to_thread(_safe_unlink, tmp)
