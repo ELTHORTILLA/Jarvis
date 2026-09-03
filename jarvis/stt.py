@@ -96,6 +96,8 @@ class WhisperCppTranscriber:
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await proc.communicate()
+            log.debug("whisper terminó rc=%d stdout=%d bytes stderr=%d bytes",
+                      proc.returncode, len(stdout), len(stderr))
             # Borramos antes de parsear, pero después de que el subproceso
             # haya soltado el handle. En Linux da igual, en Windows era
             # crítico.
