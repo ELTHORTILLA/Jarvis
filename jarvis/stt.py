@@ -79,6 +79,8 @@ class WhisperCppTranscriber:
                 "-nt",  # sin marcas de tiempo
             ]
             log.debug("ejecutando: %s", " ".join(args))
+            log.debug("temporal %s existe=%s size=%d bytes",
+                      tmp, tmp.exists(), tmp.stat().st_size if tmp.exists() else -1)
             # Debug: dejamos una copia del WAV enviado a Whisper en
             # JARVIS_DEBUG_DIR (si está definida) para poder reproducirlo y
             # entender qué está escuchando realmente el STT.
