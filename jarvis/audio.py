@@ -90,10 +90,21 @@ class Recorder:
             raise MicrophoneError(f"no se pudo abrir el micrófono: {exc}") from exc
 
         with stream:
-            # 1. Calibración: medimos el ruido ambiente. La Snowball y otros
-            #    USB suelen soltar un pico de encendido en el primer frame;
-            #    usamos la mediana (no el máximo) para que ese pico no
-            #    infle el umbral y haga que la voz real quede por debajo.
+            # 0. Warm-up: descartamos el primer segundo de captura. Algunos
+            #    dispositivos USB (Blue Snowball entre ellos) arrancan mudos
+            #    y luego sueltan un transitorio fuerte cuando se "despiertan";
+            #    si calibramos contra ese transitorio, el umbral queda
+            #    inflado y la voz real queda por debajo.
+            warmup = 1.0
+            warmup_elapsed = 0.0
+            while warmup_elapsed < warmup:
+                try:
+                    blocks.get(timeout=1.0)
+                except queue.Empty:
+                    break
+                warmup_elapsed += block_secs
+
+            # 1. Calibración: medimos el ruido ambiente.
             noise: list[float] = []
             deadline = cfg.calibration_time
             elapsed = 0.0
@@ -109,9 +120,6 @@ class Recorder:
                 threshold = cfg.silence_threshold
             else:
                 floor = float(np.median(noise)) if noise else 0.0
-                # 3x el ruido de fondo, con un piso mínimo bajo para que no
-                # se dispare con picos espurios del USB. Si tu ambiente es
-                # muy ruidoso, sube JARVIS_SILENCE_THRESHOLD a 0.02–0.05.
                 threshold = max(floor * 3.0, 0.003)
             log.debug(
                 "umbral de voz: %.5f (floor=%.5f, max=%.5f)",
