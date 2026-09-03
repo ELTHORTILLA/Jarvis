@@ -58,11 +58,14 @@ class WhisperCppTranscriber:
         assert binary  # garantizado por preflight
         wav = to_wav_bytes(samples, sample_rate)
 
-        # whisper.cpp lee de fichero; usamos un temporal que borramos
-        # DESPUÉS de que termine el subproceso. En Windows, intentar
-        # borrarlo mientras whisper-cli aún tiene el handle abierto lanza
-        # WinError 32.
-        tmp = Path(tempfile.mkstemp(suffix=".wav", prefix="jarvis-stt-")[1])
+        # whisper.cpp lee de fichero. Usamos `.cache/stt/` en lugar de
+        # `tempfile.mkstemp` porque algunos antivirus (Defender sobre todo)
+        # bloquean o corrompen lecturas desde %TEMP% mientras los escanean,
+        # y eso hace que whisper-cli devuelva stdout vacío aunque el archivo
+        # exista y tenga el contenido correcto.
+        cache_dir = Path(".cache") / "stt"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        tmp = cache_dir / f"jarvis-stt-{os.getpid()}-{id(self)}.wav"
         try:
             tmp.write_bytes(wav)
             args = [
