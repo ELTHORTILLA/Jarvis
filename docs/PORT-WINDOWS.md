@@ -26,14 +26,21 @@ incluso Notepad).
 
 ```powershell
 cd $HOME\Documents
-git clone https://github.com/<tu-usuario>/Jarvis.git
+git clone https://github.com/ELTHORTILLA/Jarvis.git
 cd Jarvis
 
-py -3.13 -m venv .venv
+# Si el instalador de Python marcó "Add Python to PATH" usas `python` directamente.
+# Si marcó también "Install py launcher", puedes usar `py -3.12` o `py -3.13` para
+# elegir versión. Lo más portable es:
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+> **Si `python` no se reconoce**, abre el instalador de Python otra vez y
+> marca "Add Python to PATH" (modificar instalación → modificar). Después
+> cierra y abre PowerShell.
 
 Si PowerShell se queja de la activación:
 
@@ -49,16 +56,19 @@ Es un one-shot; solo afecta a tu usuario.
 
 ### Opción A: binarios precompilados (recomendado)
 
-1. Ve a la página de releases:
-   [github.com/ggml-org/whisper.cpp/releases](https://github.com/ggml-org/whisper.cpp/releases).
-2. Descarga el ZIP marcado como `whisper-bin-x64.zip` (o `-x64-avx2.zip`
-   si tu CPU lo soporta — CPUs desde 2014 suelen tener AVX2).
-3. Descomprímelo donde quieras, por ejemplo `C:\tools\whisper\`.
-4. Verifica que `whisper-cli.exe` está accesible:
+Pega cada línea tal cual en PowerShell. **No las partas en dos** — PowerShell
+se atraganta con comandos multilínea cuando se pegan desde un chat.
 
-   ```powershell
-   & "C:\tools\whisper\whisper-cli.exe" --help
-   ```
+```powershell
+$zip = "$env:TEMP\whisper.zip"
+Invoke-WebRequest -Uri "https://github.com/ggml-org/whisper.cpp/releases/download/b4938/whisper-bin-x64.zip" -OutFile $zip
+Expand-Archive -Path $zip -DestinationPath "C:\tools\whisper" -Force
+& "C:\tools\whisper\whisper-cli.exe" --help | Select-Object -First 5
+```
+
+Si la URL `b4938` no funciona (porque suben una release más nueva), ve a
+[github.com/ggml-org/whisper.cpp/releases](https://github.com/ggml-org/whisper.cpp/releases),
+copia la URL del asset `whisper-bin-x64.zip` y reemplaza la URL en el comando.
 
 ### Opción B: compilar
 
@@ -85,6 +95,46 @@ latencia.
 
 ## 4. Configurar `.env`
 
+Si prefieres no tocar Notepad, este bloque PowerShell escribe el `.env`
+directamente. Pégalo entero, te pedirá el token, y listo:
+
+```powershell
+$envFile = "D:\GitHub\Jarvis\.env"
+$token = Read-Host "Pega tu token de MiniMax (sk-cp-...)"
+$lines = @(
+    "# --- MiniMax (TTS) ---"
+    "MINIMAX_API_KEY=`"$token`""
+    "MINIMAX_BASE_URL=https://api.minimax.io"
+    "MINIMAX_TTS_MODEL=speech-2.6-turbo"
+    "MINIMAX_VOICE_ID=Spanish_ConfidentWoman"
+    "MINIMAX_TTS_SAMPLE_RATE=24000"
+    "MINIMAX_TTS_SPEED=1.0"
+    ""
+    "# --- STT (whisper.cpp local) ---"
+    "JARVIS_WHISPER_BIN=`"C:/tools/whisper/Release/whisper-cli.exe`""
+    "JARVIS_WHISPER_STT_LANGUAGE=es"
+    "JARVIS_WHISPER_MODEL=`"D:/GitHub/Jarvis/models/ggml-base.bin`""
+    ""
+    "# --- Captura de audio ---"
+    "JARVIS_SILENCE_THRESHOLD=0"
+    "JARVIS_SILENCE_DURATION=0.9"
+    "JARVIS_MAX_UTTERANCE=20"
+    "JARVIS_START_TIMEOUT=10"
+    ""
+    "# --- Ejecución ---"
+    "JARVIS_BACKEND=llm"
+    "JARVIS_ALLOW_DANGEROUS=0"
+    "JARVIS_OPENCLAW_BIN=openclaw"
+    "JARVIS_OPENCLAW_CWD="
+    "JARVIS_OPENCLAW_MODEL="
+    "JARVIS_OPENCLAW_TIMEOUT=180"
+)
+$lines -join "`n" | Set-Content -Path $envFile -Encoding UTF8
+Write-Host "escrito: $envFile"
+```
+
+Si prefieres editar a mano con Notepad:
+
 ```powershell
 copy .env.example .env
 notepad .env
@@ -94,9 +144,19 @@ Edita **solo** estas tres líneas:
 
 ```
 MINIMAX_API_KEY=<tu-token-de-MiniMax>
-JARVIS_WHISPER_BIN=C:\tools\whisper\whisper-cli.exe
-JARVIS_WHISPER_MODEL=C:\Users\<tu-usuario>\Documents\Jarvis\models\ggml-base.bin
+JARVIS_WHISPER_BIN="C:/tools/whisper/Release/whisper-cli.exe"
+JARVIS_WHISPER_MODEL="D:/GitHub/Jarvis/models/ggml-base.bin"
 ```
+
+> **Usa barras normales (`/`) y comillas dobles.** Si pones barras
+> invertidas (`\`) sin comillas, Notepad puede guardar `\t` como un
+> tabulador, comiéndose letras, y `python-dotenv` interpreta el `=` de
+> la primera línea como parte del valor. Las comillas y las barras
+> normales eliminan ese problema.
+
+> Las releases recientes de whisper.cpp meten un subdirectorio `Release\`
+> dentro del ZIP. Si tu `.exe` aparece en otra ruta tras extraer, ajusta
+> `JARVIS_WHISPER_BIN` a la ruta real (`Get-ChildItem -Path "C:\tools\whisper" -Recurse -Filter "whisper-cli.exe"` te la dice).
 
 El resto déjalo como está.
 

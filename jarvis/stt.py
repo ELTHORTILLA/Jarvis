@@ -57,7 +57,10 @@ class WhisperCppTranscriber:
         assert binary  # garantizado por preflight
         wav = to_wav_bytes(samples, sample_rate)
 
-        # whisper.cpp lee de fichero; usamos un temporal que borramos siempre.
+        # whisper.cpp lee de fichero; usamos un temporal que borramos
+        # DESPUÉS de que termine el subproceso. En Windows, intentar
+        # borrarlo mientras whisper-cli aún tiene el handle abierto lanza
+        # WinError 32.
         tmp = Path(tempfile.mkstemp(suffix=".wav", prefix="jarvis-stt-")[1])
         try:
             tmp.write_bytes(wav)
@@ -81,12 +84,27 @@ class WhisperCppTranscriber:
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await proc.communicate()
+            # Borramos antes de parsear, pero después de que el subproceso
+            # haya soltado el handle. En Linux da igual, en Windows era
+            # crítico.
+            await asyncio.to_thread(_safe_unlink, tmp)
             if proc.returncode != 0:
                 detail = stderr.decode("utf-8", "replace").strip() or "sin detalle"
                 raise STTError(f"whisper.cpp falló (código {proc.returncode}): {detail}")
             return self._clean(stdout.decode("utf-8", "replace"))
-        finally:
-            tmp.unlink(missing_ok=True)
+        except BaseException:
+            # Si algo falla antes de communicate, intentamos borrar igual.
+            await asyncio.to_thread(_safe_unlink, tmp)
+            raise
+
+
+def _safe_unlink(path: Path) -> None:
+    """Borra `path` ignorando errores; útil en Windows donde el handle puede
+    no estar liberado al instante."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
     @staticmethod
     def _clean(raw: str) -> str:
