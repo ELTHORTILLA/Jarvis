@@ -1,0 +1,7 @@
+.venv/
+.cache/
+.env
+__pycache__/
+*.pyc
+models/
+mirrorlist.new
