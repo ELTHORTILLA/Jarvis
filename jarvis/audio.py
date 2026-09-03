@@ -60,6 +60,7 @@ class Recorder:
                 channels=cfg.channels,
                 blocksize=cfg.block_size,
                 dtype="float32",
+                device=cfg.input_device,
                 callback=callback,
             )
         except Exception as exc:  # PortAudio lanza tipos variados

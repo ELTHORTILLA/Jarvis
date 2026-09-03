@@ -49,6 +49,22 @@ class AudioConfig:
     start_timeout: float = field(default_factory=lambda: _env_float("JARVIS_START_TIMEOUT", 10.0))
     calibration_time: float = 0.6
 
+    # Índice del dispositivo de entrada. None = usar el default de sounddevice.
+    # Útil cuando hay varios micros (laptop + USB externo) y queremos forzar uno.
+    input_device: int | None = field(
+        default_factory=lambda: _int_or_none("JARVIS_INPUT_DEVICE")
+    )
+
+
+def _int_or_none(name: str) -> int | None:
+    raw = _env(name)
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
+
     @property
     def block_size(self) -> int:
         return int(self.sample_rate * self.block_ms / 1000)
