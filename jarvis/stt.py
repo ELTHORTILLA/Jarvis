@@ -103,7 +103,10 @@ class WhisperCppTranscriber:
             if proc.returncode != 0:
                 detail = stderr.decode("utf-8", "replace").strip() or "sin detalle"
                 raise STTError(f"whisper.cpp falló (código {proc.returncode}): {detail}")
-            return self._clean(stdout.decode("utf-8", "replace"))
+            raw = stdout.decode("utf-8", "replace")
+            cleaned = self._clean(raw)
+            log.debug("STT raw=%r cleaned=%r", raw, cleaned)
+            return cleaned
         except BaseException:
             # Si algo falla antes de communicate, intentamos borrar igual.
             await asyncio.to_thread(_safe_unlink, tmp)
