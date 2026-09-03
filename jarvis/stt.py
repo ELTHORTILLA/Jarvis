@@ -97,15 +97,6 @@ class WhisperCppTranscriber:
             await asyncio.to_thread(_safe_unlink, tmp)
             raise
 
-
-def _safe_unlink(path: Path) -> None:
-    """Borra `path` ignorando errores; útil en Windows donde el handle puede
-    no estar liberado al instante."""
-    try:
-        path.unlink(missing_ok=True)
-    except OSError:
-        pass
-
     @staticmethod
     def _clean(raw: str) -> str:
         lines: list[str] = []
@@ -115,3 +106,12 @@ def _safe_unlink(path: Path) -> None:
                 continue
             lines.append(line)
         return " ".join(lines).strip()
+
+
+def _safe_unlink(path: Path) -> None:
+    """Borra `path` ignorando errores; útil en Windows donde el handle puede
+    no estar liberado al instante."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
