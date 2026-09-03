@@ -120,7 +120,9 @@ class Recorder:
                 threshold = cfg.silence_threshold
             else:
                 floor = float(np.median(noise)) if noise else 0.0
-                threshold = max(floor * 3.0, 0.003)
+                # 0.005 evita disparar con picos espurios del USB. Si tu
+                # ambiente es muy ruidoso, sube JARVIS_SILENCE_THRESHOLD.
+                threshold = max(floor * 3.0, 0.005)
             log.debug(
                 "umbral de voz: %.5f (floor=%.5f, max=%.5f)",
                 threshold, floor, max(noise) if noise else 0.0,
