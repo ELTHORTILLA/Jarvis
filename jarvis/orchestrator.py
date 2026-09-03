@@ -73,14 +73,15 @@ class Assistant:
     async def handle_turn(self) -> bool:
         """Un turno completo. Devuelve False si el usuario pidió terminar."""
         print("\n🎙️  Escuchando…", flush=True)
-        samples = await self.recorder.record()
-        if samples is None:
+        recorded = await self.recorder.record()
+        if recorded is None:
             print("   (no escuché nada)", flush=True)
             return True
+        samples, sample_rate = recorded
 
         print("📝 Transcribiendo…", flush=True)
         try:
-            text = await self.transcriber.transcribe(samples, self.cfg.audio.sample_rate)
+            text = await self.transcriber.transcribe(samples, sample_rate)
         except Exception as exc:
             log.error("falló la transcripción: %s", exc)
             await self.speak("No pude entender el audio.")

@@ -54,30 +54,39 @@ class Recorder:
         collected: list[np.ndarray] = []
         speech: list[np.ndarray] = []
         block_secs = cfg.block_ms / 1000
+
+        # Si el usuario fijó un device, preguntamos su sample rate nativo:
+        # sounddevice en modo compartido puede fallar si le pedimos uno
+        # distinto. Si el device es el default de Windows (None), respetamos
+        # el de la config directamente.
+        device_sr = cfg.sample_rate
+        if cfg.input_device is not None:
+            try:
+                device_sr = int(sd.query_devices(cfg.input_device, kind="input")["default_samplerate"])
+            except Exception as exc:
+                log.debug("no pude leer el sample rate del device, uso %d: %s", cfg.sample_rate, exc)
+
+        def _open(sr: int):
+            return sd.InputStream(
+                samplerate=sr,
+                channels=cfg.channels,
+                blocksize=int(sr * cfg.block_ms / 1000),
+                dtype="float32",
+                device=cfg.input_device,
+                callback=callback,
+            )
+
         try:
-            stream = sd.InputStream(
-                samplerate=cfg.sample_rate,
-                channels=cfg.channels,
-                blocksize=cfg.block_size,
-                dtype="float32",
-                device=cfg.input_device,
-                callback=callback,
-                # Forzamos modo exclusivo en WASAPI para que otros procesos
-                # (Voicemeeter, Discord, etc.) no nos roben el dispositivo y
-                # veamos un silencio que en realidad no es tal.
-                extra_settings=sd.WasapiSettings(exclusive=True),
-            )
-        except (TypeError, sd.PortAudioError):
-            # Si el backend no es WASAPI o rechaza exclusivo, abrimos sin él.
-            stream = sd.InputStream(
-                samplerate=cfg.sample_rate,
-                channels=cfg.channels,
-                blocksize=cfg.block_size,
-                dtype="float32",
-                device=cfg.input_device,
-                callback=callback,
-            )
-        except Exception as exc:  # PortAudio lanza tipos variados
+            stream = _open(device_sr)
+            actual_sr = device_sr
+        except sd.PortAudioError as exc:
+            log.debug("abriendo a %d Hz falló (%s); uso %d", device_sr, exc, cfg.sample_rate)
+            try:
+                stream = _open(cfg.sample_rate)
+                actual_sr = cfg.sample_rate
+            except Exception as exc2:
+                raise MicrophoneError(f"no se pudo abrir el micrófono: {exc2}") from exc2
+        except Exception as exc:
             raise MicrophoneError(f"no se pudo abrir el micrófono: {exc}") from exc
 
         with stream:
@@ -143,10 +152,21 @@ class Recorder:
 
         if not collected:
             return None
-        return np.concatenate(collected)
+        audio = np.concatenate(collected)
+        # Si el device abrió a un SR distinto al que Whisper espera, remuestreamos.
+        if actual_sr != cfg.sample_rate:
+            log.debug("remuestreando de %d Hz a %d Hz", actual_sr, cfg.sample_rate)
+            ratio = cfg.sample_rate / actual_sr
+            new_len = int(len(audio) * ratio)
+            audio = np.interp(
+                np.linspace(0, len(audio) - 1, new_len),
+                np.arange(len(audio)),
+                audio,
+            ).astype(np.float32)
+        return audio, actual_sr
 
-    async def record(self) -> np.ndarray | None:
-        """Graba sin bloquear el event loop."""
+    async def record(self) -> tuple[np.ndarray, int] | None:
+        """Graba sin bloquear el event loop. Devuelve (samples, sample_rate)."""
         return await asyncio.to_thread(self._record_blocking)
 
 
