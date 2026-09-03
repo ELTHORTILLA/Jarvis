@@ -55,6 +55,10 @@ class AudioConfig:
         default_factory=lambda: _int_or_none("JARVIS_INPUT_DEVICE")
     )
 
+    @property
+    def block_size(self) -> int:
+        return int(self.sample_rate * self.block_ms / 1000)
+
 
 def _int_or_none(name: str) -> int | None:
     raw = _env(name)
@@ -64,10 +68,6 @@ def _int_or_none(name: str) -> int | None:
         return int(raw)
     except ValueError:
         return None
-
-    @property
-    def block_size(self) -> int:
-        return int(self.sample_rate * self.block_ms / 1000)
 
 
 @dataclass
