@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -78,6 +79,17 @@ class WhisperCppTranscriber:
                 "-nt",  # sin marcas de tiempo
             ]
             log.debug("ejecutando: %s", " ".join(args))
+            # Debug: dejamos una copia del WAV enviado a Whisper en
+            # JARVIS_DEBUG_DIR (si está definida) para poder reproducirlo y
+            # entender qué está escuchando realmente el STT.
+            debug_dir = os.environ.get("JARVIS_DEBUG_DIR")
+            if debug_dir:
+                debug_path = Path(debug_dir) / "last-utt.wav"
+                debug_path.parent.mkdir(parents=True, exist_ok=True)
+                debug_path.write_bytes(wav)
+                rms = float(np.sqrt(np.mean(np.square(samples))))
+                log.debug("WAV de debug copiado a %s (rms=%.5f, sr=%d, len=%d)",
+                          debug_path, rms, sample_rate, len(samples))
             proc = await asyncio.create_subprocess_exec(
                 *args,
                 stdout=asyncio.subprocess.PIPE,
