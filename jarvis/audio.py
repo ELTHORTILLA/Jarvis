@@ -67,7 +67,10 @@ class Recorder:
             raise MicrophoneError(f"no se pudo abrir el micrófono: {exc}") from exc
 
         with stream:
-            # 1. Calibración: medimos el ruido ambiente.
+            # 1. Calibración: medimos el ruido ambiente. La Snowball y otros
+            #    USB suelen soltar un pico de encendido en el primer frame;
+            #    usamos la mediana (no el máximo) para que ese pico no
+            #    infle el umbral y haga que la voz real quede por debajo.
             noise: list[float] = []
             deadline = cfg.calibration_time
             elapsed = 0.0
@@ -85,7 +88,10 @@ class Recorder:
                 floor = float(np.median(noise)) if noise else 0.0
                 # 3x el ruido de fondo, con un piso mínimo para micros muy limpios.
                 threshold = max(floor * 3.0, 0.012)
-            log.debug("umbral de voz: %.5f", threshold)
+            log.debug(
+                "umbral de voz: %.5f (floor=%.5f, max=%.5f)",
+                threshold, floor, max(noise) if noise else 0.0,
+            )
 
             # 2. Esperamos a que empiece a hablar.
             waited = 0.0
@@ -95,10 +101,13 @@ class Recorder:
                 except queue.Empty:
                     continue
                 waited += block_secs
-                if _rms(block) >= threshold:
+                rms = _rms(block)
+                if rms >= threshold:
+                    log.debug("voz detectada (rms=%.5f tras %.2fs)", rms, waited)
                     speech.append(block)
                     break
             else:
+                log.debug("start_timeout sin voz (umbral=%.5f)", threshold)
                 return None
             if not speech:
                 return None
