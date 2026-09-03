@@ -154,16 +154,19 @@ class Recorder:
             return None
         audio = np.concatenate(collected)
         # Si el device abrió a un SR distinto al que Whisper espera, remuestreamos.
+        # ratio < 1 cuando bajamos (44.1k → 16k); new_len es el número de
+        # muestras destino, que debe ser MENOR que el original.
         if actual_sr != cfg.sample_rate:
             log.debug("remuestreando de %d Hz a %d Hz", actual_sr, cfg.sample_rate)
             ratio = cfg.sample_rate / actual_sr
-            new_len = int(len(audio) * ratio)
-            audio = np.interp(
-                np.linspace(0, len(audio) - 1, new_len),
-                np.arange(len(audio)),
-                audio,
-            ).astype(np.float32)
-        return audio, actual_sr
+            new_len = int(round(len(audio) * ratio))
+            if new_len > 0:
+                audio = np.interp(
+                    np.linspace(0, len(audio) - 1, new_len),
+                    np.arange(len(audio)),
+                    audio,
+                ).astype(np.float32)
+        return audio, cfg.sample_rate
 
     async def record(self) -> tuple[np.ndarray, int] | None:
         """Graba sin bloquear el event loop. Devuelve (samples, sample_rate)."""
