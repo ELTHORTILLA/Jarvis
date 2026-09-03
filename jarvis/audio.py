@@ -62,6 +62,20 @@ class Recorder:
                 dtype="float32",
                 device=cfg.input_device,
                 callback=callback,
+                # Forzamos modo exclusivo en WASAPI para que otros procesos
+                # (Voicemeeter, Discord, etc.) no nos roben el dispositivo y
+                # veamos un silencio que en realidad no es tal.
+                extra_settings=sd.WasapiSettings(exclusive=True),
+            )
+        except (TypeError, sd.PortAudioError):
+            # Si el backend no es WASAPI o rechaza exclusivo, abrimos sin él.
+            stream = sd.InputStream(
+                samplerate=cfg.sample_rate,
+                channels=cfg.channels,
+                blocksize=cfg.block_size,
+                dtype="float32",
+                device=cfg.input_device,
+                callback=callback,
             )
         except Exception as exc:  # PortAudio lanza tipos variados
             raise MicrophoneError(f"no se pudo abrir el micrófono: {exc}") from exc
