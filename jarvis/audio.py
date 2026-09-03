@@ -138,9 +138,14 @@ class Recorder:
                 return None
 
             # 3. Grabamos hasta que el silencio se sostenga.
+            #    Usamos histéresis: una vez detectado un pico claramente de
+            #    voz (rms > 5x el umbral), mantenemos ese nivel como nuevo
+            #    piso para no cerrar al medio de la frase cuando RMS baja
+            #    entre palabras.
             collected.extend(speech)
             silence = 0.0
             total = block_secs * len(collected)
+            active_threshold = threshold
             while silence < cfg.silence_duration and total < cfg.max_utterance:
                 try:
                     block = blocks.get(timeout=1.0)
@@ -148,7 +153,17 @@ class Recorder:
                     break
                 collected.append(block)
                 total += block_secs
-                silence = 0.0 if _rms(block) >= threshold else silence + block_secs
+                rms = _rms(block)
+                if rms >= threshold * 5:
+                    # Voz clara: subimos el piso activo para que el RMS de
+                    # las pausas entre palabras (que cae al ruido de fondo)
+                    # no acumule silencio.
+                    active_threshold = max(active_threshold, rms * 0.4)
+                    silence = 0.0
+                elif rms >= active_threshold:
+                    silence = 0.0
+                else:
+                    silence += block_secs
 
         if not collected:
             return None
